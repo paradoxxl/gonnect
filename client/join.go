@@ -1,4 +1,4 @@
-package tunnetwork
+package client
 
 import (
 	"net"
