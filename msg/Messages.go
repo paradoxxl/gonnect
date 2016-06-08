@@ -1,6 +1,9 @@
 package msg
 
-import "net"
+import (
+	"net"
+	"errors"
+)
 
 
 const (
@@ -45,7 +48,7 @@ func CheckMsg (msg []*byte) (version,cmdType int, err error){
 
 	length := uint32(msg[2:5])
 	if length < 6 {
-		err = "Bad Packet length"
+		err = errors.New("Bad Packet length")
 		return
 	}
 	cmdType = msg[5]
