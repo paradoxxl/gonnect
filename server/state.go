@@ -6,15 +6,15 @@ import (
 	"sync"
 )
 
-type Client struct {
-	cli  msg.Peer
-	nw   msg.Network
-	conn net.Conn
+type PeerState struct {
+	peer    msg.Peer
+	network msg.Network
+	conn    net.Conn
 }
 
 type Network struct {
 	Networkname    string
-	Networkmembers map[string]Client
+	Networkmembers map[string]PeerState
 	Networkpass    string
 	Networkip      net.IP
 	sync.RWMutex

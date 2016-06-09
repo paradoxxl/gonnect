@@ -10,7 +10,7 @@ import (
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 
-	var client Client
+	var client PeerState
 
 	for {
 		//Evaluate the command
@@ -19,20 +19,20 @@ func handleClient(conn net.Conn) {
 	}
 }
 
-func (cli *Client) OnCommand(commandType byte, message interface{}) {
+func (peer *PeerState) OnCommand(commandType byte, message interface{}) {
 	switch commandType {
 	case msg.CreateNwType:
 		data := msg.CreateNetworkCommand{}(message)
-		cli.createNetwork(data.Networkname,data.Networkpass,data.Networkip,data.Peername,data.Peerport)
-		cli.joinNetwork(data.Networkname,data.Networkpass,data.Peername,data.Peerport)
+		peer.createNetwork(data.Networkname,data.Networkpass,data.Networkip,data.Peername,data.Peerport)
+		peer.joinNetwork(data.Networkname,data.Networkpass,data.Peername,data.Peerport)
 	case msg.JoinNwType:
 		data := msg.JoinNetworkCommand(message)
-		cli.joinNetwork(data.Networkname,data.Networkpass,data.Peername,data.Peerport)
+		peer.joinNetwork(data.Networkname,data.Networkpass,data.Peername,data.Peerport)
 	case msg.DisconnectNw:
-		cli.disconnectNetwork()
+		peer.disconnectNetwork()
 	}
 }
-func (cli *Client) createNetwork(Networkname string,Networkpass string,Networkip net.IP,Peername string,Peerport string) {
+func (peer *PeerState) createNetwork(Networkname string,Networkpass string,Networkip net.IP,Peername string,Peerport string) {
 	_, networkexists := State.m[Networkname]
 	if networkexists {
 		return
@@ -48,10 +48,10 @@ func (cli *Client) createNetwork(Networkname string,Networkpass string,Networkip
 		Networkip:      Networkip,
 	}
 
-	cli.nw = msg.Network{Networkname: Networkname}
+	peer.network = msg.Network{Networkname: Networkname}
 }
 
-func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername string,Peerport string) {
+func (peer *PeerState) joinNetwork(	Networkname string,Networkpass string,Peername string,Peerport string) {
 
 	State.RLock()
 	defer State.RUnlock()
@@ -62,7 +62,7 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 	}
 
 	//get Client IP Address
-	cli.cli.Peeraddress = strings.Split(cli.conn.RemoteAddr().String()[0], ":") + ":" + Peerport
+	peer.peer.Peeraddress = strings.Split(peer.conn.RemoteAddr().String()[0], ":") + ":" + Peerport
 
 	//check free IP address. Select one at random, check for collisions. increment on collision
 	ok := false
@@ -70,7 +70,7 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 	for !ok {
 		ok = true
 		for _, v := range State.m[Networkname].Networkmembers {
-			cliaddr := v.cli.VirtualAddress[3]
+			cliaddr := v.peer.VirtualAddress[3]
 			if cliaddr == ip || ip == 0 {
 				ok = false
 				ip = (ip+1)%255
@@ -80,16 +80,16 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 	}
 
 
-	cli.cli.VirtualAddress = State.m[Networkname].Networkip.To4()
-	cli.cli.VirtualAddress[3] = ip
+	peer.peer.VirtualAddress = State.m[Networkname].Networkip.To4()
+	peer.peer.VirtualAddress[3] = ip
 
-	append(State.m[Networkname].Networkmembers, cli.cli)
-	cli.nw.Networkname = Networkname
-	append(cli.nw.Networkmembers, cli.cli)
+	append(State.m[Networkname].Networkmembers, peer.peer)
+	peer.network.Networkname = Networkname
+	append(peer.network.Networkmembers, peer.peer)
 
 	data := msg.EncodeNetworkJoinNotification(msg.NetworkJoinNotification{
-		VirtualIPAddress: cli.cli.VirtualAddress,
-		Peers:            cli.nw.Networkmembers,
+		VirtualIPAddress: peer.peer.VirtualAddress,
+		Peers:            peer.network.Networkmembers,
 	})
 
 	//Notify all peers including the new
@@ -106,9 +106,11 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 
 }
 
-func (cli *Client) disconnectNetwork() {
+func (peer *PeerState) disconnectNetwork() {
+	defer 	peer.conn.Close()
+	
 	State.RLock()
-	nw,exists := State.m[cli.nw.Networkname]
+	nw,exists := State.m[peer.network.Networkname]
 	State.RUnlock()
 
 	if !exists {
@@ -117,13 +119,13 @@ func (cli *Client) disconnectNetwork() {
 	}
 
 	nw.Lock()
-	_,exists = nw.Networkmembers[cli.cli.Peername]
+	_,exists = nw.Networkmembers[peer.peer.Peername]
 
 	if !exists {
 		//TODO: Handle this properly. Should really not happen, but who knows?
 		return
 	}
-	delete(nw.Networkmembers,cli.cli.Peername)
+	delete(nw.Networkmembers, peer.peer.Peername)
 
 	nw.Unlock()
 
@@ -131,9 +133,26 @@ func (cli *Client) disconnectNetwork() {
 	//check whether the there are no more peers in the Network. If so, delete it
 	if len(nw.Networkmembers) == 0 {
 		State.Lock()
-		delete(State,cli.nw.Networkname)
+		delete(State, peer.network.Networkname)
 		State.Unlock()
+	}else{
+		nw.RLock()
+		data := msg.EncodeClientDisconnectNotification(msg.ClientDisconnectNotification{
+			VirtualIPAddress: peer.peer.VirtualAddress,
+		})
+
+		for _, v := range nw.Networkmembers {
+			n, err := v.conn.Write(data)
+			if err {
+				//TODO: Do something
+			}
+			if n != len(data) {
+				//TODO: Try resend
+			}
+		}
+		nw.Unlock()
 	}
+
 
 
 }
