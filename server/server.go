@@ -64,19 +64,17 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 	//get Client IP Address
 	cli.cli.Peeraddress = strings.Split(cli.conn.RemoteAddr().String()[0], ":") + ":" + Peerport
 
-	//check free IP address
-	//TODO: Make it better
+	//check free IP address. Select one at random, check for collisions. increment on collision
 	ok := false
-	var ip int
+	var ip = rand.Intn(253) + 1
 	for !ok {
 		ok = true
-		ip = rand.Intn(253) + 1
-
 		for _, v := range State.m[Networkname].Networkmembers {
 			cliaddr := v.cli.VirtualAddress[3]
-			if cliaddr == ip {
+			if cliaddr == ip || ip == 0 {
 				ok = false
-				return
+				ip = (ip+1)%255
+				break
 			}
 		}
 	}
@@ -109,5 +107,33 @@ func (cli *Client) joinNetwork(	Networkname string,Networkpass string,Peername s
 }
 
 func (cli *Client) disconnectNetwork() {
+	State.RLock()
+	nw,exists := State.m[cli.nw.Networkname]
+	State.RUnlock()
+
+	if !exists {
+		//TODO: Handle this properly. Should really not happen, but who knows?
+		return
+	}
+
+	nw.Lock()
+	_,exists = nw.Networkmembers[cli.cli.Peername]
+
+	if !exists {
+		//TODO: Handle this properly. Should really not happen, but who knows?
+		return
+	}
+	delete(nw.Networkmembers,cli.cli.Peername)
+
+	nw.Unlock()
+
+
+	//check whether the there are no more peers in the Network. If so, delete it
+	if len(nw.Networkmembers) == 0 {
+		State.Lock()
+		delete(State,cli.nw.Networkname)
+		State.Unlock()
+	}
+
 
 }
