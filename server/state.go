@@ -1,15 +1,27 @@
 package server
 
 import (
-	"net"
 	"github.com/paradoxxl/gonnect/msg"
+	"net"
+	"sync"
 )
 
-type Network struct{
-	Networkname string
-	Networkmembers map[string]msg.Peer
-	Networkpass string
-	Networkip net.IP
+type PeerState struct {
+	peer    msg.Peer
+	network msg.Network
+	conn    net.Conn
 }
 
-var State = make(map[string]Network)
+type Network struct {
+	Networkname    string
+	Networkmembers map[string]PeerState
+	Networkpass    string
+	Networkip      net.IP
+	sync.RWMutex
+}
+
+var State = struct {
+	sync.RWMutex
+	m map[string]Network
+}{m: make(map[string]Network)}
+
