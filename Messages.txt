@@ -1,0 +1,15 @@
+From Server:
+
+HelloAccept 
+"stunserveraddress" -> string
+
+ListNetworksResponse
+"Networks" -> []PublicNetwork{"Name" -> string, "Password" -> bool, "Members" -> int, "Address" -> net.IP}
+
+NetworkJoinResponse
+"Existingmembers" -> []NetworkMember{"Name" -> string, "Virtualaddress" -> net.IP, "Remoteaddress" -> net.UDPAddr}
+
+Error
+"Type" -> int
+"Message" -> string
+
