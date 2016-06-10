@@ -15,7 +15,7 @@ type GonnectServer struct{
 }
 
 
-func NewGonectServer(pubkPath,privkPath string,port int) GonnectServer{
+func NewGonnectServer(pubkPath,privkPath string,port int) GonnectServer{
 
 	cert,err := tls.LoadX509KeyPair(pubkPath,privkPath)
 	if err != nil{
