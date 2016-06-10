@@ -53,10 +53,7 @@ var DefaultCert = certParams{
 		CommonName:"Gonnect",
 	},
 }
-func GenCert(params certParams){
-	pemFile := "pub.pem"
-	keyFile := "priv.key"
-
+func GenCert(params certParams,keyFile,pemFile string){
 	ca := &x509.Certificate{
 		SerialNumber: big.NewInt(1337),
 		Subject: pkix.Name{
